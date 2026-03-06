@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AEGIS v9.0 — نظام الإنقاذ الكامل</title>
+
+<!-- Leaflet Map -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Cairo:wght@300;400;600;700&display=swap');
+:root{--r:#ff2020;--o:#ff6600;--g:#00ff88;--c:#00e5ff;--dk:#050a0f;--pn:#0a1520;--br:#1a3a5c;--tx:#cce8ff;--dm:#4a7fa0;--y:#ffdd00;--pur:#9b59b6}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:var(--dk);color:var(--tx);font-family:'Cairo',sans-serif;display:flex;flex-direction:column}
+
+/* ── TOP HEADER ── */
+.hdr{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--br);background:rgba(5,10,15,.95);backdrop-filter:blur(10px)}
+.hlogo{display:flex;align-items:center;gap:8px}
+.hlogo svg{width:32px;height:32px;filter:drop-shadow(0 0 8px var(--c));animation:pl 3s ease-in-out infinite}
+@keyframes pl{0%,100%{filter:drop-shadow(0 0 8px var(--c))}50%{filter:drop-shadow(0 0 18px var(--c))}}
+.htitle{font-family:'Orbitron',monospace;font-size:1.1rem;font-weight:900;color:var(--c);letter-spacing:4px;text-shadow:0 0 12px rgba(0,229,255,.5)}
+.hbadge{font-size:.6rem;color:var(--g);border:1px solid var(--g);border-radius:10px;padding:2px 8px;letter-spacing:1px}
+.hstatus{display:flex;align-items:center;gap:6px;font-size:.65rem;color:var(--dm)}
+.hdot{width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 6px var(--g);animation:bl 2s ease-in-out infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── BOTTOM NAV ── */
+.bnav{flex-shrink:0;display:flex;border-top:1px solid var(--br);background:rgba(5,10,15,.97)}
+.nt{flex:1;padding:8px 4px 10px;background:transparent;border:none;color:var(--dm);font-family:'Cairo',sans-serif;font-size:.65rem;cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:3px;border-right:1px solid var(--br)}
+.nt:last-child{border-right:none}
+.nt.on{color:var(--c);background:rgba(0,229,255,.06)}
+.nt .ni{font-size:1.2rem}
+
+/* ── PAGES ── */
+.pages{flex:1;overflow:hidden;position:relative}
+.pg{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;display:none;padding:12px}
+.pg.on{display:block}
+.pg.nopad{padding:0}
+
+/* ── SECTION HEADERS ── */
+.sh{font-size:.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--dm);margin-bottom:8px;display:flex;align-items:center;gap:7px}
+.sh::after{content:'';flex:1;height:1px;background:var(--br)}
+
+/* ── CARDS ── */
+.card{background:var(--pn);border:1px solid var(--br);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.card-h{background:rgba(0,229,255,.05);border-bottom:1px solid var(--br);padding:9px 13px;font-size:.67rem;letter-spacing:2px;text-transform:uppercase;color:var(--c);display:flex;align-items:center;gap:7px}
+.card-b{padding:13px}
+
+/* ── BUTTONS ── */
+.btn{background:rgba(0,229,255,.1);border:1px solid var(--c);border-radius:6px;color:var(--c);padding:8px 14px;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.78rem;transition:all .2s;display:inline-flex;align-items:center;gap:5px}
+.btn:hover,.btn:active{background:rgba(0,229,255,.2)}
+.btn.g{border-color:var(--g);color:var(--g);background:rgba(0,255,136,.08)}
+.btn.r{border-color:var(--r);color:var(--r);background:rgba(255,32,32,.08)}
+.btn.y{border-color:var(--y);color:var(--y);background:rgba(255,221,0,.08)}
+.btn.o{border-color:var(--o);color:var(--o);background:rgba(255,102,0,.08)}
+.btn.sm{padding:5px 10px;font-size:.72rem}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── INPUTS ── */
+.inp{background:rgba(0,0,0,.4);border:1px solid var(--br);border-radius:6px;padding:9px 12px;color:var(--tx);font-family:'Cairo',sans-serif;font-size:.84rem;direction:rtl;outline:none;transition:border-color .2s;width:100%}
+.inp:focus{border-color:var(--c)}
+.inp::placeholder{color:var(--dm)}
+
+/* ══════════════════════════════
+   PAGE 1: MAP
+══════════════════════════════ */
+#map{width:100%;height:100%;z-index:1}
+.map-ctrl{position:absolute;top:10px;right:10px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+.map-ctrl button{width:38px;height:38px;background:rgba(10,21,32,.92);border:1px solid var(--br);border-radius:8px;color:var(--c);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;backdrop-filter:blur(6px)}
+.map-ctrl button:hover{border-color:var(--c);background:rgba(0,229,255,.15)}
+.map-info{position:absolute;bottom:14px;right:10px;left:10px;z-index:1000;background:rgba(10,21,32,.92);border:1px solid var(--br);border-radius:8px;padding:9px 12px;backdrop-filter:blur(6px);font-size:.72rem;color:var(--dm)}
+.map-coords{font-family:'Orbitron',monospace;font-size:.75rem;color:var(--c);margin-top:3px}
+.leaflet-container{background:#0a1520 !important}
+
+/* ══════════════════════════════
+   PAGE 2: AI CHAT
+══════════════════════════════ */
+.ai-wrap{display:flex;flex-direction:column;height:100%;padding:0}
+.threat-bar{flex-shrink:0;padding:10px 12px;border-bottom:1px solid var(--br);display:flex;align-items:center;gap:10px;background:rgba(5,10,15,.8)}
+.tls{display:flex;gap:5px;flex:1}
+.tb2{flex:1;padding:5px 3px;border:none;border-radius:4px;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.65rem;font-weight:600;transition:all .2s;opacity:.4;min-width:40px}
+.tb2.on{opacity:1;transform:scale(1.05)}
+.tb2.t1{background:#00ff8822;border:1px solid var(--g);color:var(--g)}.tb2.t1.on{background:#00ff8833;box-shadow:0 0 12px rgba(0,255,136,.35)}
+.tb2.t2{background:#ffff0022;border:1px solid #ffff00;color:#ffff00}.tb2.t2.on{background:#ffff0033;box-shadow:0 0 12px rgba(255,255,0,.35)}
+.tb2.t3{background:#ff660022;border:1px solid var(--o);color:var(--o)}.tb2.t3.on{background:#ff660033;box-shadow:0 0 12px rgba(255,102,0,.35)}
+.tb2.t4{background:#ff202022;border:1px solid var(--r);color:var(--r)}.tb2.t4.on{background:#ff202033;box-shadow:0 0 12px rgba(255,32,32,.35)}
+.tb2.t5{background:#ff00ff22;border:1px solid #ff00ff;color:#ff00ff}.tb2.t5.on{background:#ff00ff33;box-shadow:0 0 12px rgba(255,0,255,.35)}
+.scns{flex-shrink:0;padding:8px 12px;border-bottom:1px solid var(--br);display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.scns::-webkit-scrollbar{height:2px}.scns::-webkit-scrollbar-thumb{background:var(--br)}
+.scn{background:var(--pn);border:1px solid var(--br);border-radius:16px;padding:5px 11px;cursor:pointer;color:var(--tx);font-family:'Cairo',sans-serif;font-size:.72rem;white-space:nowrap;transition:all .2s;flex-shrink:0}
+.scn:hover,.scn:active{border-color:var(--c);color:var(--c)}
+.msgs-wrap{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.msgs-wrap::-webkit-scrollbar{width:3px}.msgs-wrap::-webkit-scrollbar-thumb{background:var(--br);border-radius:2px}
+.msg{display:flex;gap:9px;animation:fs .25s ease}
+@keyframes fs{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg.u{flex-direction:row-reverse}
+.av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.msg.a .av{background:rgba(0,229,255,.1);border:1px solid var(--c)}
+.msg.u .av{background:rgba(0,255,136,.1);border:1px solid var(--g)}
+.bub{max-width:80%;padding:9px 12px;font-size:.82rem;line-height:1.8}
+.msg.a .bub{background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.18);border-radius:4px 11px 11px 11px}
+.msg.u .bub{background:rgba(0,255,136,.04);border:1px solid rgba(0,255,136,.18);border-radius:11px 4px 11px 11px;text-align:right}
+.mn{font-size:.58rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;opacity:.55}
+.typing2{display:flex;gap:9px;align-items:flex-start}
+.td{display:flex;gap:4px;align-items:center;padding:9px 12px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.18);border-radius:4px 11px 11px 11px}
+.td span{width:5px;height:5px;border-radius:50%;background:var(--c);animation:db 1.2s ease-in-out infinite}
+.td span:nth-child(2){animation-delay:.2s}.td span:nth-child(3){animation-delay:.4s}
+@keyframes db{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-5px);opacity:1}}
+.ai-input{flex-shrink:0;padding:10px 12px;border-top:1px solid var(--br);display:flex;gap:7px;background:rgba(5,10,15,.8)}
+.ai-input input{flex:1;background:rgba(0,0,0,.4);border:1px solid var(--br);border-radius:6px;padding:9px 12px;color:var(--tx);font-family:'Cairo',sans-serif;font-size:.82rem;direction:rtl;outline:none}
+.ai-input input:focus{border-color:var(--c)}
+.ai-input input::placeholder{color:var(--dm)}
+.sndbtn{background:rgba(0,229,255,.1);border:1px solid var(--c);border-radius:6px;color:var(--c);padding:9px 13px;cursor:pointer;font-family:'Orbitron',monospace;font-size:.62rem;letter-spacing:1px;white-space:nowrap}
+.sndbtn:disabled{opacity:.4;cursor:not-allowed}
+.st{padding:4px 10px;border-right:2px solid var(--c);margin:3px 0;font-size:.8rem}
+.ab{background:rgba(255,32,32,.08);border:1px solid rgba(255,32,32,.3);border-radius:5px;padding:6px 10px;margin-top:5px;color:#ffaaaa;font-size:.78rem}
+.gb{background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.2);border-radius:5px;padding:6px 10px;margin-top:5px;color:#aaffcc;font-size:.78rem}
+.wb{background:rgba(255,102,0,.07);border:1px solid rgba(255,102,0,.25);border-radius:5px;padding:6px 10px;margin-top:5px;color:#ffcc99;font-size:.78rem}
+.Tr{color:var(--r);font-weight:700}.To{color:var(--o);font-weight:600}.Tg{color:var(--g);font-weight:600}
+
+/* ══════════════════════════════
+   PAGE 3: RADIO
+══════════════════════════════ */
+.radio-wrap{max-width:520px;margin:0 auto}
+
+/* الشاشة الرئيسية */
+.radio-screen{background:#000;border:2px solid var(--br);border-radius:10px;padding:14px 16px;margin-bottom:12px;position:relative;overflow:hidden}
+.radio-screen::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,136,.015) 3px,rgba(0,255,136,.015) 4px);pointer-events:none}
+.radio-mode-tabs{display:flex;gap:0;margin-bottom:12px;border:1px solid var(--br);border-radius:6px;overflow:hidden}
+.rmode-tab{flex:1;padding:6px;background:transparent;border:none;color:var(--dm);font-family:'Cairo',sans-serif;font-size:.7rem;cursor:pointer;transition:all .2s}
+.rmode-tab.on{background:rgba(0,255,136,.1);color:var(--g)}
+
+/* تردد */
+.radio-freq-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px}
+.radio-freq{font-family:'Orbitron',monospace;font-size:2.4rem;color:var(--g);text-shadow:0 0 14px rgba(0,255,136,.7);letter-spacing:2px;cursor:pointer;min-width:180px;text-align:center}
+.freq-arrows{display:flex;flex-direction:column;gap:3px}
+.freq-arr{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.3);border-radius:4px;color:var(--g);width:28px;height:22px;cursor:pointer;font-size:.8rem;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.freq-arr:active{background:rgba(0,255,136,.3)}
+.radio-name{font-size:.78rem;color:var(--dm);text-align:center;min-height:18px}
+.radio-vis{height:36px;display:flex;align-items:center;justify-content:center;gap:2px;margin:8px 0}
+.radio-vis .bar{width:3px;background:var(--g);border-radius:2px;transition:height .1s}
+
+/* الإشارة */
+.signal-row{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+.signal-bars{display:flex;gap:2px;align-items:flex-end}
+.sig-bar{width:5px;border-radius:1px;background:var(--br)}
+.sig-bar.active{background:var(--g)}
+.radio-status{font-size:.65rem;color:var(--dm);letter-spacing:1px}
+
+/* إدخال تردد */
+.freq-input-row{display:flex;gap:7px;margin-bottom:10px;align-items:center}
+.freq-inp{background:rgba(0,0,0,.6);border:1px solid var(--br);border-radius:6px;padding:8px 12px;color:var(--g);font-family:'Orbitron',monospace;font-size:1rem;direction:ltr;outline:none;width:140px;letter-spacing:2px;text-align:center}
+.freq-inp:focus{border-color:var(--g)}
+.freq-unit{font-family:'Orbitron',monospace;font-size:.7rem;color:var(--dm)}
+
+/* أزرار التحكم */
+.radio-controls{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap}
+
+/* محطات */
+.radio-stations{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:10px}
+.rstation{background:var(--pn);border:1px solid var(--br);border-radius:7px;padding:9px;cursor:pointer;transition:all .2s;text-align:center}
+.rstation:hover,.rstation.playing{border-color:var(--g);background:rgba(0,255,136,.06);box-shadow:0 0 10px rgba(0,255,136,.1)}
+.rstation .rsn{font-size:.76rem;font-weight:600;margin-bottom:2px}
+.rstation .rsf{font-family:'Orbitron',monospace;font-size:.62rem;color:var(--dm)}
+.rstation.playing .rsf{color:var(--g)}
+.vol-wrap{display:flex;align-items:center;gap:10px;margin-top:10px}
+.vol-wrap input{flex:1;accent-color:var(--g);height:4px}
+.vol-wrap span{font-family:'Orbitron',monospace;font-size:.68rem;color:var(--dm);min-width:30px}
+
+/* ═══ راديو التواصل الصوتي ═══ */
+.walkie-wrap{padding:4px 0}
+.channel-display{background:#000;border:1px solid var(--br);border-radius:8px;padding:14px;text-align:center;margin-bottom:12px}
+.channel-num{font-family:'Orbitron',monospace;font-size:2.6rem;color:var(--o);text-shadow:0 0 14px rgba(255,102,0,.6);letter-spacing:4px}
+.channel-label{font-size:.7rem;color:var(--dm);margin-top:2px}
+.channel-users{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:8px;min-height:22px}
+.cuser{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.25);border-radius:10px;padding:2px 8px;font-size:.65rem;color:var(--g)}
+.cuser.talking{background:rgba(255,102,0,.15);border-color:rgba(255,102,0,.5);color:var(--o);animation:tk .5s ease-in-out infinite alternate}
+@keyframes tk{from{box-shadow:0 0 4px rgba(255,102,0,.3)}to{box-shadow:0 0 12px rgba(255,102,0,.7)}}
+
+/* زر الإرسال الصوتي */
+.ptt-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin:14px 0}
+.ptt-btn{width:120px;height:120px;border-radius:50%;border:4px solid var(--o);background:rgba(255,102,0,.08);cursor:pointer;transition:all .2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-family:'Cairo',sans-serif;font-size:.8rem;color:var(--o);user-select:none;-webkit-user-select:none}
+.ptt-btn:active,.ptt-btn.transmitting{background:rgba(255,102,0,.25);box-shadow:0 0 30px rgba(255,102,0,.5),0 0 60px rgba(255,102,0,.2);border-color:#ff8800;transform:scale(1.05)}
+.ptt-icon{font-size:2.2rem}
+.ptt-label{font-size:.68rem;letter-spacing:1px}
+.ptt-status{font-size:.72rem;color:var(--dm);letter-spacing:1px;text-align:center}
+
+/* قائمة رسائل الراديو */
+.radio-log{background:rgba(0,0,0,.4);border:1px solid var(--br);border-radius:8px;padding:10px;max-height:160px;overflow-y:auto;margin-bottom:10px}
+.radio-log::-webkit-scrollbar{width:2px}.radio-log::-webkit-scrollbar-thumb{background:var(--br)}
+.rlog-item{padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.75rem;display:flex;gap:8px;align-items:flex-start}
+.rlog-item:last-child{border-bottom:none}
+.rlog-who{color:var(--o);font-weight:700;white-space:nowrap;font-size:.68rem}
+.rlog-who.me{color:var(--g)}
+.rlog-txt{color:var(--tx);flex:1}
+.rlog-time{color:var(--dm);font-size:.6rem;white-space:nowrap}
+
+/* الأسماء */
+.walkie-setup{background:var(--pn);border:1px solid var(--br);border-radius:8px;padding:12px;margin-bottom:12px}
+.ch-select-row{display:flex;gap:7px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.ch-inp{background:rgba(0,0,0,.5);border:1px solid var(--br);border-radius:5px;padding:7px 10px;color:var(--o);font-family:'Orbitron',monospace;font-size:1.1rem;width:80px;text-align:center;outline:none;letter-spacing:2px}
+.ch-inp:focus{border-color:var(--o)}
+.ch-arr{background:rgba(255,102,0,.1);border:1px solid rgba(255,102,0,.3);color:var(--o);border-radius:4px;padding:6px 10px;cursor:pointer;font-size:.9rem}
+.ch-arr:active{background:rgba(255,102,0,.3)}
+
+/* ══════════════════════════════
+   PAGE 4: NOTES
+══════════════════════════════ */
+.notes-wrap{display:flex;flex-direction:column;height:100%;padding:0}
+.notes-list{flex-shrink:0;padding:10px 12px;border-bottom:1px solid var(--br);max-height:160px;overflow-y:auto}
+.note-item{background:var(--pn);border:1px solid var(--br);border-radius:6px;padding:8px 11px;margin-bottom:6px;cursor:pointer;transition:all .2s;display:flex;justify-content:space-between;align-items:flex-start}
+.note-item:hover,.note-item.on{border-color:var(--c);background:rgba(0,229,255,.04)}
+.note-item-title{font-size:.8rem;font-weight:600;margin-bottom:2px}
+.note-item-preview{font-size:.7rem;color:var(--dm);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.note-item-time{font-size:.62rem;color:var(--dm);white-space:nowrap;flex-shrink:0}
+.note-editor{flex:1;display:flex;flex-direction:column;padding:12px}
+.note-title-inp{background:rgba(0,0,0,.4);border:1px solid var(--br);border-bottom:none;border-radius:6px 6px 0 0;padding:10px 12px;color:var(--tx);font-family:'Cairo',sans-serif;font-size:.9rem;font-weight:600;direction:rtl;outline:none;width:100%}
+.note-title-inp:focus{border-color:var(--c)}
+.note-body{flex:1;background:rgba(0,0,0,.3);border:1px solid var(--br);border-radius:0 0 6px 6px;padding:10px 12px;color:var(--tx);font-family:'Cairo',sans-serif;font-size:.84rem;direction:rtl;outline:none;resize:none;line-height:1.8;min-height:200px}
+.note-body:focus{border-color:var(--c)}
+.note-bar{flex-shrink:0;padding:10px 12px;border-top:1px solid var(--br);display:flex;gap:8px;background:rgba(5,10,15,.8);flex-wrap:wrap}
+
+/* ══════════════════════════════
+   PAGE 5: CHAT
+══════════════════════════════ */
+.chat-setup{padding:14px;max-width:480px;margin:0 auto}
+.room-display{background:var(--pn);border:1px solid var(--br);border-radius:8px;padding:12px;margin-bottom:12px;text-align:center}
+.room-code{font-family:'Orbitron',monospace;font-size:2rem;color:var(--y);letter-spacing:6px;text-shadow:0 0 12px rgba(255,221,0,.4)}
+.room-label{font-size:.68rem;color:var(--dm);margin-top:4px;letter-spacing:1px}
+.online-users{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;justify-content:center}
+.user-badge{background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);border-radius:12px;padding:3px 10px;font-size:.68rem;color:var(--c)}
+.chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:200px;max-height:calc(100vh - 360px)}
+.chat-msgs::-webkit-scrollbar{width:3px}.chat-msgs::-webkit-scrollbar-thumb{background:var(--br)}
+.cmsg{display:flex;flex-direction:column;gap:2px}
+.cmsg.me{align-items:flex-end}
+.cmsg.me .cbub{background:rgba(0,229,255,.1);border:1px solid rgba(0,229,255,.3);border-radius:12px 4px 12px 12px}
+.cbub{background:var(--pn);border:1px solid var(--br);border-radius:4px 12px 12px 12px;padding:8px 12px;font-size:.83rem;max-width:78%;line-height:1.7}
+.cmeta{font-size:.62rem;color:var(--dm)}
+.chat-input-wrap{padding:10px 12px;border-top:1px solid var(--br);display:flex;gap:7px;background:rgba(5,10,15,.9)}
+.chat-input-wrap input{flex:1;background:rgba(0,0,0,.4);border:1px solid var(--br);border-radius:6px;padding:9px 12px;color:var(--tx);font-family:'Cairo',sans-serif;font-size:.82rem;direction:rtl;outline:none}
+.chat-input-wrap input:focus{border-color:var(--c)}
+.system-msg{text-align:center;font-size:.68rem;color:var(--dm);padding:4px 0;font-style:italic}
+
+/* ══════════════════════════════
+   PAGE 6: TOOLS
+══════════════════════════════ */
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+/* compass */
+.cw{display:flex;flex-direction:column;align-items:center;gap:10px}
+#compass{width:180px;height:180px;border-radius:50%;position:relative;background:radial-gradient(circle,rgba(0,229,255,.05),rgba(0,0,0,.7));border:2px solid var(--br);box-shadow:0 0 20px rgba(0,229,255,.07)}
+.cneedle{position:absolute;bottom:50%;left:50%;width:3px;height:70px;margin-left:-1.5px;transform-origin:bottom center;background:linear-gradient(to bottom,var(--r) 55%,#fff 45%);border-radius:3px 3px 1px 1px;transition:transform .35s cubic-bezier(.25,.46,.45,.94)}
+.cctr{position:absolute;top:50%;left:50%;width:9px;height:9px;border-radius:50%;background:var(--c);transform:translate(-50%,-50%);box-shadow:0 0 7px var(--c);z-index:2}
+.clab{position:absolute;font-family:'Orbitron',monospace;font-size:.68rem;font-weight:700}
+.clab.n{color:var(--r);top:5px;left:50%;transform:translateX(-50%)}
+.clab.s{color:var(--dm);bottom:5px;left:50%;transform:translateX(-50%)}
+.clab.e{color:var(--dm);left:5px;top:50%;transform:translateY(-50%)}
+.clab.w{color:var(--dm);right:5px;top:50%;transform:translateY(-50%)}
+.cdeg{font-family:'Orbitron',monospace;font-size:1.5rem;color:var(--c)}
+.cdir{font-size:.72rem;color:var(--dm);letter-spacing:2px}
+/* clock */
+.clkw{display:flex;flex-direction:column;align-items:center;gap:9px}
+#clkface{width:170px;height:170px;border-radius:50%;position:relative;background:radial-gradient(circle,rgba(0,229,255,.04),rgba(0,0,0,.7));border:2px solid var(--br)}
+.hnd{position:absolute;bottom:50%;left:50%;transform-origin:bottom center;border-radius:3px}
+.hctr{position:absolute;top:50%;left:50%;width:8px;height:8px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);z-index:2}
+.dtime{font-family:'Orbitron',monospace;font-size:1.4rem;color:var(--c);letter-spacing:3px}
+.ddate{font-size:.68rem;color:var(--dm)}
+/* flashlight */
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px}
+#fbtn{width:110px;height:110px;border-radius:50%;border:3px solid var(--br);background:rgba(0,0,0,.6);cursor:pointer;transition:all .25s;display:flex;align-items:center;justify-content:center;font-size:2.8rem}
+#fbtn.on{border-color:var(--y);background:rgba(255,221,0,.12);box-shadow:0 0 40px rgba(255,221,0,.5)}
+.flbl{font-size:.74rem;letter-spacing:2px;text-transform:uppercase;color:var(--dm)}
+.flbl.on{color:var(--y)}
+.fmodes{display:flex;gap:6px}
+.fm{background:var(--pn);border:1px solid var(--br);border-radius:4px;padding:5px 10px;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.68rem;color:var(--dm);transition:all .2s}
+.fm.on{border-color:var(--y);color:var(--y);background:rgba(255,221,0,.07)}
+#foverlay{position:fixed;inset:0;pointer-events:none;z-index:99999;transition:background .2s;background:transparent}
+/* timer */
+.timerd{font-family:'Orbitron',monospace;font-size:2rem;color:var(--c);letter-spacing:4px;margin-bottom:12px;text-align:center}
+.tbtns{display:flex;gap:7px;justify-content:center;flex-wrap:wrap}
+
+/* ══════════════════════════════
+   PAGE 7: SURVIVAL
+══════════════════════════════ */
+.itabs{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap}
+.itab{background:var(--pn);border:1px solid var(--br);border-radius:20px;padding:5px 11px;cursor:pointer;font-family:'Cairo',sans-serif;font-size:.7rem;color:var(--dm);transition:all .2s}
+.itab.on{border-color:var(--o);color:var(--o);background:rgba(255,102,0,.07)}
+.ict{background:rgba(0,0,0,.3);border:1px solid var(--br);border-radius:8px;padding:12px;font-size:.8rem;line-height:1.85}
+.ict h3{color:var(--o);font-size:.82rem;margin-bottom:8px;letter-spacing:1px}
+.il li{padding:4px 0;border-right:2px solid var(--o);padding-right:9px;margin:3px 0;list-style:none;font-size:.79rem}
+.sn{color:var(--c);font-weight:700;font-family:'Orbitron',monospace;font-size:.68rem;margin-left:4px}
+
+footer{flex-shrink:0;text-align:center;padding:5px;font-size:.58rem;letter-spacing:1px;color:var(--dm);border-top:1px solid var(--br)}
+</style>
+</head>
+<body>
+<div id="foverlay"></div>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hlogo">
+    <svg viewBox="0 0 60 60" fill="none">
+      <polygon points="30,4 56,18 56,42 30,56 4,42 4,18" fill="none" stroke="#00e5ff" stroke-width="2"/>
+      <circle cx="30" cy="30" r="5" fill="#00e5ff" opacity=".9"/>
+      <line x1="30" y1="4" x2="30" y2="25" stroke="#00e5ff" stroke-width="1.5"/>
+      <line x1="30" y1="35" x2="30" y2="56" stroke="#00e5ff" stroke-width="1.5"/>
+      <line x1="4" y1="18" x2="25" y2="26" stroke="#00e5ff" stroke-width="1.5"/>
+      <line x1="35" y1="34" x2="56" y2="42" stroke="#00e5ff" stroke-width="1.5"/>
+      <line x1="56" y1="18" x2="35" y2="26" stroke="#00e5ff" stroke-width="1.5"/>
+      <line x1="25" y1="34" x2="4" y2="42" stroke="#00e5ff" stroke-width="1.5"/>
+    </svg>
+    <div class="htitle">AEGIS</div>
+  </div>
+  <div class="hstatus"><div class="hdot"></div><span id="hst">أوفلاين</span></div>
+  <div class="hbadge">v9.0</div>
+</div>
+
+<!-- PAGES -->
+<div class="pages">
+
+  <!-- ═══ MAP ═══ -->
+  <div class="pg nopad on" id="pg-map">
+    <div id="map"></div>
+    <div class="map-ctrl">
+      <button onclick="locateMe()" title="موقعي">📍</button>
+      <button onclick="addDanger()" title="خطر">⚠️</button>
+      <button onclick="addSafe()" title="آمن">✅</button>
+      <button onclick="clearMarkers()" title="مسح">🗑️</button>
+    </div>
+    <div class="map-info">
+      <div>📍 <span id="minfo">اضغط 📍 لتحديد موقعك</span></div>
+      <div class="map-coords" id="mcoords"></div>
+    </div>
+  </div>
+
+  <!-- ═══ AI ═══ -->
+  <div class="pg nopad" id="pg-ai" style="display:flex;flex-direction:column">
+    <div class="threat-bar">
+      <span style="font-size:.62rem;color:var(--dm);white-space:nowrap">خطر:</span>
+      <div class="tls">
+        <button class="tb2 t1 on" onclick="setT(1,this)">آمن</button>
+        <button class="tb2 t2" onclick="setT(2,this)">تحذير</button>
+        <button class="tb2 t3" onclick="setT(3,this)">خطر</button>
+        <button class="tb2 t4" onclick="setT(4,this)">حرج</button>
+        <button class="tb2 t5" onclick="setT(5,this)">كارثي</button>
+      </div>
+    </div>
+    <div class="scns">
+      <button class="scn" onclick="qa('انفجار قنبلة 100 متر')">💣 انفجار</button>
+      <button class="scn" onclick="qa('حريق مبنى محاصر')">🔥 حريق</button>
+      <button class="scn" onclick="qa('هجوم كيميائي')">☣️ كيميائي</button>
+      <button class="scn" onclick="qa('غارة جوية طائرات')">✈️ غارة</button>
+      <button class="scn" onclick="qa('اهرب من جنود مسلحين')">🏃 هروب</button>
+      <button class="scn" onclick="qa('3 اشخاص 4 لتر ماء')">💧 ماء</button>
+      <button class="scn" onclick="qa('بناء ملجأ طارئ')">🏚️ ملجأ</button>
+      <button class="scn" onclick="qa('إسعاف جرح نزيف')">🩹 إسعاف</button>
+      <button class="scn" onclick="qa('ضاع في غابة')">🌲 طبيعة</button>
+      <button class="scn" onclick="qa('كارثة نووية إشعاع')">☢️ نووي</button>
+    </div>
+    <div class="msgs-wrap" id="aimsg">
+      <div class="msg a">
+        <div class="av">🛡️</div>
+        <div class="bub"><div class="mn">AEGIS</div>مرحباً! أنا AEGIS v9.0 — أعمل بدون نت.<br>🗺️ <strong>الخريطة:</strong> حدد موقعك وعلّم مناطق الخطر<br>📻 <strong>الراديو:</strong> محطات حقيقية<br>📝 <strong>النوتة:</strong> دوّن ملاحظاتك<br>💬 <strong>الشات:</strong> تواصل مع الآخرين<br><br><span class="Tr">⚡ صِف وضعك وسأعطيك خطة فورية.</span></div>
+      </div>
+    </div>
+    <div class="ai-input">
+      <button class="sndbtn" id="sndb" onclick="aiSend()">إرسال</button>
+      <input type="text" id="aiinp" placeholder="صِف الموقف..." onkeydown="if(event.key==='Enter')aiSend()"/>
+    </div>
+  </div>
+
+  <!-- ═══ RADIO ═══ -->
+  <div class="pg" id="pg-radio">
+    <div class="radio-wrap">
+
+      <!-- تبويبات الوضع -->
+      <div class="radio-mode-tabs">
+        <button class="rmode-tab on" id="rtab-broadcast" onclick="switchRadioMode('broadcast')">📻 بث مباشر</button>
+        <button class="rmode-tab" id="rtab-walkie" onclick="switchRadioMode('walkie')">🎙️ راديو تواصل</button>
+      </div>
+
+      <!-- ════ وضع البث المباشر ════ -->
+      <div id="rmode-broadcast">
+        <div class="radio-screen">
+          <div class="radio-freq-row">
+            <div class="freq-arrows">
+              <button class="freq-arr" onclick="stepFreq(0.1)">▲</button>
+              <button class="freq-arr" onclick="stepFreq(-0.1)">▼</button>
+            </div>
+            <div class="radio-freq" id="rfreq" onclick="focusFreqInput()">87.5</div>
+            <span class="freq-unit">MHz</span>
+          </div>
+          <div class="radio-name" id="rname">اختر محطة أو أدخل التردد</div>
+          <div class="radio-vis" id="rvis"></div>
+          <div class="signal-row">
+            <div class="signal-bars" id="sigbars"></div>
+            <div class="radio-status" id="rstatus">⬤ STANDBY</div>
+          </div>
+        </div>
+
+        <!-- إدخال تردد يدوي -->
+        <div class="freq-input-row">
+          <span style="font-size:.72rem;color:var(--dm)">التردد:</span>
+          <input class="freq-inp" type="number" id="freqinp" min="87.5" max="108" step="0.1" value="87.5" placeholder="87.5"/>
+          <span class="freq-unit">MHz</span>
+          <button class="btn g sm" onclick="tuneToFreq()">ضبط</button>
+          <button class="btn sm" onclick="scanFreq()">↺ مسح</button>
+        </div>
+
+        <div class="radio-controls">
+          <button class="btn r sm" onclick="stopRadio()">⏹ إيقاف</button>
+          <button class="btn y sm" onclick="radioVol(-0.1)">🔉 أهدأ</button>
+          <button class="btn g sm" onclick="radioVol(0.1)">🔊 أعلى</button>
+        </div>
+
+        <div class="sh">محطات سريعة</div>
+        <div class="radio-stations" id="rstations"></div>
+        <div class="vol-wrap">
+          <span>🔊</span>
+          <input type="range" min="0" max="1" step="0.05" value="0.7" id="rvol" oninput="setVol(this.value)">
+          <span id="rvpct">70%</span>
+        </div>
+      </div>
+
+      <!-- ════ وضع راديو التواصل ════ -->
+      <div id="rmode-walkie" style="display:none">
+
+        <!-- إعداد الاسم والقناة -->
+        <div class="walkie-setup" id="walkie-setup">
+          <div style="font-size:.72rem;color:var(--dm);margin-bottom:8px">👤 اسمك في الراديو</div>
+          <input class="inp" id="wname" placeholder="اسم الراديو (مثال: ألفا-1)..." style="margin-bottom:8px"/>
+          <div style="font-size:.72rem;color:var(--dm);margin-bottom:6px">📡 رقم القناة (1-99)</div>
+          <div class="ch-select-row">
+            <button class="ch-arr" onclick="changeChannel(-1)">◀</button>
+            <input class="ch-inp" type="number" id="wchan" min="1" max="99" value="1"/>
+            <button class="ch-arr" onclick="changeChannel(1)">▶</button>
+            <button class="btn g sm" onclick="joinChannel()" style="flex:1">📡 دخول القناة</button>
+          </div>
+        </div>
+
+        <!-- عرض القناة النشطة -->
+        <div class="channel-display" id="channel-display" style="display:none">
+          <div style="font-size:.6rem;color:var(--dm);letter-spacing:2px;margin-bottom:4px">CHANNEL</div>
+          <div class="channel-num" id="chan-num">01</div>
+          <div class="channel-label" id="chan-label">أنت: <span id="chan-myname" style="color:var(--g)"></span></div>
+          <div class="channel-users" id="chan-users"></div>
+        </div>
+
+        <!-- سجل الراديو -->
+        <div class="radio-log" id="radio-log">
+          <div style="color:var(--dm);font-size:.72rem;text-align:center;padding:8px">سجل الرسائل الصوتية والنصية</div>
+        </div>
+
+        <!-- زر الإرسال + الرسالة النصية -->
+        <div id="walkie-controls" style="display:none">
+          <div class="ptt-wrap">
+            <button class="ptt-btn" id="ptt-btn"
+              onmousedown="startPTT()" onmouseup="stopPTT()"
+              ontouchstart="startPTT(event)" ontouchend="stopPTT(event)">
+              <span class="ptt-icon">🎙️</span>
+              <span class="ptt-label">اضغط للكلام</span>
+            </button>
+            <div class="ptt-status" id="ptt-status">جاهز للإرسال</div>
+          </div>
+
+          <!-- رسالة نصية -->
+          <div style="display:flex;gap:7px;margin-bottom:8px">
+            <input class="inp" id="wtextinp" placeholder="رسالة نصية للقناة..." onkeydown="if(event.key==='Enter')sendWalkieText()"/>
+            <button class="btn g sm" onclick="sendWalkieText()">إرسال</button>
+          </div>
+
+          <!-- مشاركة الموقع -->
+          <div style="display:flex;gap:7px;flex-wrap:wrap">
+            <button class="btn sm o" onclick="shareWalkieLocation()">📍 أرسل موقعي</button>
+            <button class="btn r sm" onclick="leaveChannel()">📵 مغادرة القناة</button>
+          </div>
+        </div>
+
+      </div><!-- end walkie -->
+    </div><!-- end radio-wrap -->
+  </div>
+
+  <!-- ═══ NOTES ═══ -->
+  <div class="pg nopad" id="pg-notes" style="display:flex;flex-direction:column;height:100%">
+    <div class="notes-list" id="notes-list">
+      <div style="text-align:center;color:var(--dm);font-size:.75rem;padding:8px">لا توجد ملاحظات بعد — اضغط "جديد"</div>
+    </div>
+    <div class="note-editor" id="note-editor">
+      <input class="note-title-inp" id="ntitle" placeholder="عنوان الملاحظة..." />
+      <textarea class="note-body" id="nbody" placeholder="اكتب ملاحظاتك هنا...&#10;&#10;مثال:&#10;- موقعنا: خلف المبنى الأزرق&#10;- عدد الأشخاص: 4&#10;- الماء المتبقي: 6 لتر&#10;- اتجاه الهروب: شمال"></textarea>
+    </div>
+    <div class="note-bar">
+      <button class="btn g sm" onclick="saveNote()">💾 حفظ</button>
+      <button class="btn sm" onclick="newNote()">➕ جديد</button>
+      <button class="btn r sm" onclick="deleteNote()">🗑️ حذف</button>
+      <button class="btn y sm" onclick="exportNote()">📤 تصدير</button>
+      <span style="font-size:.65rem;color:var(--dm);margin-right:auto;align-self:center" id="nsave-status"></span>
+    </div>
+  </div>
+
+  <!-- ═══ CHAT ═══ -->
+  <div class="pg nopad" id="pg-chat" style="display:flex;flex-direction:column;height:100%">
+    <div style="flex-shrink:0;padding:10px 12px;border-bottom:1px solid var(--br);background:rgba(5,10,15,.9)" id="chat-header-area">
+      <div id="chat-setup-view">
+        <div style="font-size:.75rem;color:var(--dm);margin-bottom:10px;text-align:center">💬 الشات الجماعي — تواصل مع الآخرين</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <input class="inp" id="uname-inp" placeholder="اسمك / كود المجموعة..." style="flex:1"/>
+          <button class="btn sm g" onclick="joinRoom()">دخول</button>
+        </div>
+        <div style="display:flex;gap:7px;justify-content:center;flex-wrap:wrap">
+          <button class="btn sm" onclick="genRoom()">🎲 غرفة عشوائية</button>
+          <input class="inp" id="room-inp" placeholder="كود الغرفة..." style="width:130px;text-align:center;font-family:Orbitron,monospace;letter-spacing:3px"/>
+          <button class="btn sm y" onclick="joinWithCode()">دخول بكود</button>
+        </div>
+      </div>
+      <div id="chat-room-view" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <span style="font-size:.65rem;color:var(--dm)">الغرفة: </span>
+            <span style="font-family:'Orbitron',monospace;color:var(--y);font-size:.9rem;letter-spacing:3px" id="room-display">----</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <span style="font-size:.65rem;color:var(--g)" id="online-count">0 متصل</span>
+            <button class="btn r sm" onclick="leaveRoom()">خروج</button>
+          </div>
+        </div>
+        <div style="font-size:.65rem;color:var(--dm);margin-top:4px">أنت: <span style="color:var(--c)" id="myname-display"></span></div>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chatmsgs" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+      <div class="system-msg">👋 ادخل للغرفة للبدء بالمحادثة</div>
+    </div>
+    <div class="chat-input-wrap" id="chat-input-wrap" style="display:none">
+      <button class="btn sm" onclick="shareMyLocation()">📍</button>
+      <input type="text" id="chatinp" placeholder="اكتب رسالة..." onkeydown="if(event.key==='Enter')chatSend()"/>
+      <button class="btn sm g" onclick="chatSend()">إرسال</button>
+    </div>
+  </div>
+
+  <!-- ═══ TOOLS ═══ -->
+  <div class="pg" id="pg-tools">
+    <div class="tools-grid">
+
+      <div class="card">
+        <div class="card-h">🧭 البوصلة</div>
+        <div class="card-b">
+          <div class="cw">
+            <div id="compass">
+              <div class="clab n">N</div><div class="clab s">S</div>
+              <div class="clab e">W</div><div class="clab w">E</div>
+              <div class="cneedle" id="cneedle"></div>
+              <div class="cctr"></div>
+            </div>
+            <div class="cdeg" id="cdeg">---°</div>
+            <div class="cdir" id="cdir">اضغط تفعيل</div>
+            <button class="btn sm" onclick="startCompass()">🧭 تفعيل</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">⏱️ الساعة</div>
+        <div class="card-b">
+          <div class="clkw">
+            <div id="clkface">
+              <div class="hnd" id="hh"></div>
+              <div class="hnd" id="hm"></div>
+              <div class="hnd" id="hs"></div>
+              <div class="hctr"></div>
+            </div>
+            <div class="dtime" id="dtime">--:--:--</div>
+            <div class="ddate" id="ddate">...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">🔦 الكشاف</div>
+        <div class="card-b">
+          <div class="fw">
+            <div id="fbtn" onclick="toggleFlash()">🔦</div>
+            <div class="flbl" id="flbl">إيقاف</div>
+            <div class="fmodes">
+              <button class="fm on" id="fm-s" onclick="setFM('s')">ثابت</button>
+              <button class="fm" id="fm-b" onclick="setFM('b')">وميض</button>
+              <button class="fm" id="fm-sos" onclick="setFM('sos')">SOS</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">⏲️ المؤقت</div>
+        <div class="card-b">
+          <div class="timerd" id="tdsp">00:00:00</div>
+          <div class="tbtns">
+            <button class="btn g sm" onclick="tCtrl('start')">▶ ابدأ</button>
+            <button class="btn y sm" onclick="tCtrl('pause')">⏸ وقف</button>
+            <button class="btn r sm" onclick="tCtrl('reset')">↺ صفر</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ SURVIVAL ═══ -->
+  <div class="pg" id="pg-surv">
+    <div class="itabs">
+      <button class="itab on" onclick="showI('fire',this)">🔥 النار</button>
+      <button class="itab" onclick="showI('food',this)">🍽️ الطبخ</button>
+      <button class="itab" onclick="showI('water',this)">💧 الماء</button>
+      <button class="itab" onclick="showI('shelter',this)">🏕️ الملجأ</button>
+      <button class="itab" onclick="showI('signal',this)">📡 الإنقاذ</button>
+      <button class="itab" onclick="showI('nav',this)">🌟 الملاحة</button>
+    </div>
+    <div class="ict" id="ict"></div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+  <button class="nt on" onclick="goPage('map',this)"><span class="ni">🗺️</span>الخريطة</button>
+  <button class="nt" onclick="goPage('ai',this)"><span class="ni">🛡️</span>الذكاء</button>
+  <button class="nt" onclick="goPage('radio',this)"><span class="ni">📻</span>الراديو</button>
+  <button class="nt" onclick="goPage('notes',this)"><span class="ni">📝</span>النوتة</button>
+  <button class="nt" onclick="goPage('chat',this)"><span class="ni">💬</span>الشات</button>
+  <button class="nt" onclick="goPage('tools',this)"><span class="ni">🧰</span>الأدوات</button>
+  <button class="nt" onclick="goPage('surv',this)"><span class="ni">🔥</span>البقاء</button>
+</div>
+
+<footer>AEGIS v9.0 — أوفلاين كامل — للأغراض التعليمية والتوعوية</footer>
+
+<script>
+// ══════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════
+function goPage(id, btn){
+  document.querySelectorAll('.pg').forEach(p=>{p.style.display='none';p.classList.remove('on');});
+  document.querySelectorAll('.nt').forEach(t=>t.classList.remove('on'));
+  const pg = document.getElementById('pg-'+id);
+  pg.style.display = (id==='ai'||id==='notes'||id==='chat') ? 'flex' : (id==='map' ? 'block' : 'block');
+  pg.classList.add('on');
+  btn.classList.add('on');
+  if(id==='map' && !mapInit) initMap();
+  if(id==='radio') initRadio();
+  if(id==='notes') loadNotes();
+  if(id==='surv') showI('fire',document.querySelector('.itab'));
+}
+
+// init first page
+document.getElementById('pg-map').style.display = 'block';
+
+// ══════════════════════════════════
+//  MAP (Leaflet + OpenStreetMap)
+// ══════════════════════════════════
+let map, mapInit=false, myMarker=null, dangerMarkers=[];
+
+function initMap(){
+  if(mapInit) return; mapInit=true;
+  map = L.map('map', {
+    center:[24.7136,46.6753], zoom:5,
+    zoomControl:false,
+    attributionControl:false
+  });
+
+  // Dark tile layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'© OpenStreetMap'
+  }).addTo(map);
+
+  // Custom dark style overlay
+  map.attributionControl && map.removeControl(map.attributionControl);
+
+  // Click to add marker
+  map.on('click', e=>{
+    const lat=e.latlng.lat.toFixed(5), lng=e.latlng.lng.toFixed(5);
+    document.getElementById('mcoords').textContent=`${lat}, ${lng}`;
+  });
+}
+
+function locateMe(){
+  if(!mapInit) initMap();
+  document.getElementById('minfo').textContent='جاري التحديد...';
+  navigator.geolocation.getCurrentPosition(p=>{
+    const {latitude:lat,longitude:lng} = p.coords;
+    if(myMarker) map.removeLayer(myMarker);
+    const icon = L.divIcon({html:'<div style="width:18px;height:18px;border-radius:50%;background:#00ff88;border:3px solid #fff;box-shadow:0 0 12px #00ff88"></div>',iconSize:[18,18],iconAnchor:[9,9],className:''});
+    myMarker = L.marker([lat,lng],{icon}).addTo(map).bindPopup('📍 موقعك الحالي').openPopup();
+    map.setView([lat,lng],14);
+    document.getElementById('minfo').textContent='✅ تم تحديد موقعك';
+    document.getElementById('mcoords').textContent=`${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }, ()=>{ document.getElementById('minfo').textContent='⚠️ تعذّر الحصول على الموقع'; });
+}
+
+function addDanger(){
+  if(!map){alert('افتح الخريطة أولاً');return;}
+  map.once('click',e=>{
+    const icon=L.divIcon({html:'<div style="font-size:22px;text-shadow:0 0 8px red">⚠️</div>',iconSize:[24,24],iconAnchor:[12,12],className:''});
+    const m=L.marker(e.latlng,{icon}).addTo(map).bindPopup('⚠️ منطقة خطر');
+    dangerMarkers.push(m);
+  });
+  document.getElementById('minfo').textContent='اضغط على الخريطة لتحديد منطقة خطر';
+}
+
+function addSafe(){
+  if(!map){alert('افتح الخريطة أولاً');return;}
+  map.once('click',e=>{
+    const icon=L.divIcon({html:'<div style="font-size:22px">✅</div>',iconSize:[24,24],iconAnchor:[12,12],className:''});
+    const m=L.marker(e.latlng,{icon}).addTo(map).bindPopup('✅ منطقة آمنة');
+    dangerMarkers.push(m);
+  });
+  document.getElementById('minfo').textContent='اضغط على الخريطة لتحديد منطقة آمنة';
+}
+
+function clearMarkers(){
+  dangerMarkers.forEach(m=>map&&map.removeLayer(m));
+  dangerMarkers=[];
+  if(myMarker){ map.removeLayer(myMarker); myMarker=null; }
+  document.getElementById('minfo').textContent='تم مسح جميع العلامات';
+  document.getElementById('mcoords').textContent='';
+}
+
+// ══════════════════════════════════
+//  AI ENGINE
+// ══════════════════════════════════
+let aiCnt=0, aiThr=1;
+function setT(l,b){aiThr=l;document.querySelectorAll('.tb2').forEach(x=>x.classList.remove('on'));b.classList.add('on');}
+function qa(t){document.getElementById('aiinp').value=t;aiSend();}
+
+const DB=[
+  {k:['قنبل','انفجار','تنفجر','مفخخ','عبوة','شظا'],f(q,t){const d=((q.match(/(\d+)\s*متر/)||[])[1])||100;return`<span class="Tr">💣 بروتوكول الانفجار ${d<50?'🔴 حرج':d<200?'🟠 خطر':'🟡 تحذير'}</span><br><br><div class="st">اطرح نفسك أرضاً — وجهك للتراب، يداك على رأسك</div><div class="st">افتح فمك — يوازن ضغط الأذن</div><div class="st">لا تقم فوراً — الهجوم المزدوج شائع</div><div class="st">ازحف منخفضاً 300م+ عكس الريح</div>${d<100?'<div class="ab">⚠️ مسافة حرجة! دم من الأذن = إصابة رئوية داخلية</div>':''}<div class="gb">✅ شظية كبيرة: لا تخرجها — تثبيتها يوقف النزيف</div>`}},
+  {k:['حريق','نار','دخان','يشتعل','احترق','محاصر','طابق'],f(q,t){return`<span class="Tr">🔥 بروتوكول الحريق</span><br><br><div class="st">المس الباب بظهر يدك — ساخن = لا تفتحه</div><div class="st">الدخان يقتل قبل النار — ابقَ على أربع دائماً</div><div class="st">طابق 2: تدلَّ بيديك ثم أسقط</div><div class="st">طابق 3+: اربط ملابس/شرشف للنزول</div><div class="wb">⚠️ لا تختبئ في خزانات — الحرارة تتركز فيها</div>`}},
+  {k:['كيميائي','غاز سام','سارين','كلور','سم'],f(q,t){return`<span class="Tr">☣️ بروتوكول CBRN</span><br><br><div class="st">احبس نفسك واركض عكس الريح وإلى مرتفع</div><div class="st">500م+ حد أدنى للابتعاد</div><div class="st">خلع الملابس فوراً — 80% من التلوث فيها</div><div class="st">اغسل بماء وصابون 15 دقيقة</div><div class="ab">⚠️ تقلص حدقة + رغوة = تسمم عصبي → على الجانب فوراً</div>`}},
+  {k:['طائرة','غارة','قصف','صاروخ','مقاتلة','دوي'],f(q,t){return`<span class="Tr">✈️ بروتوكول الغارة</span><br><br><div class="st">ادخل أقرب مبنى — الطوابق السفلية أفضل</div><div class="st">ابتعد عن النوافذ والجدران الخارجية</div><div class="st">في الخارج: انبطح في أي حفرة أو منخفض</div><div class="st">انتظر 10 دقائق بعد الغارة</div><div class="ab">⚠️ لا تلمس أجساماً غريبة في الأرض — قنابل غير منفجرة</div>`}},
+  {k:['اهرب','هروب','جندي','جنود','يطارد','مسلح','عدو','يلاحق','لوحدي','وحدي'],f(q,t){const alone=q.includes('لوحد')||q.includes('وحدي');return`<span class="Tr">🏃 بروتوكول التهرب</span><br><br>${alone?'<div class="ab">⚠️ وضع منفرد — الاختباء أفضل من المواجهة</div><br>':''}<div class="st">1. اختبِ أولاً — أفضل خيار</div><div class="st">2. اهرب إن اكتُشفت بتغيير اتجاه كل 100م</div><div class="st">3. واجه فقط إن لم يبقَ خيار</div><div class="st">الصمت التام — أوقف الاهتزاز في الجوال</div><div class="gb">✅ الليل حليفك — تحرك في الظلام، ابقَ ساكناً في الضوء</div>`}},
+  {k:['ماء','مياه','لتر','نفرق','نوزع','توزيع','شرب'],f(q,t){const pm=q.match(/(\d+)\s*(اشخاص|أشخاص|ناس|شخص)/);const lm=q.match(/(\d+)\s*لتر/);const p=pm?+pm[1]:3;const l=lm?+lm[1]:4;const pp=(l/p).toFixed(1);const d=Math.floor(l/(p*.5));return`<span class="To">💧 إدارة المياه الطارئة</span><br><br><div class="st">${p} أشخاص + ${l} لتر = <strong>${pp} لتر/شخص</strong></div><div class="st">0.5ل/يوم → يكفي <strong>${d} أيام</strong></div><div class="st">الأطفال والمرضى أولاً — رشفات صغيرة كل 20 دقيقة</div>${l<p*.8?'<div class="ab">⚠️ الماء حرج! 250ml/شخص/يوم كحد مطلق</div>':'<div class="gb">✅ الكمية مقبولة مع الترشيد</div>'}`}},
+  {k:['ملجأ','مخبأ','نبني','مكان آمن','أحصن'],f(q,t){return`<span class="Tg">🏚️ ملجأ طارئ</span><br><br><div class="st">تحت الأرض أفضل: قبو، سرداب، حفرة عمقها متر</div><div class="st">كيس رمل = حماية فعالة ضد الشظايا</div><div class="st">غطِّ الشقوق بشريط لاصق + قماش مبلل</div><div class="gb">📖 تفاصيل في تبويب البقاء 🏕️</div>`}},
+  {k:['إسعاف','جرح','نزيف','شظية','مصاب','كسر','دم','شريان'],f(q,t){return`<span class="Tr">🩹 الإسعاف الميداني</span><br><br><div class="st"><span class="Tr">فوري:</span> نزيف شرياني — لا تنفس — فاقد وعي</div><div class="st">ضغط قوي مستمر على النزيف — لا ترفع يدك</div><div class="st">رباط ضاغط 5سم فوق الجرح — سجّل الوقت</div><div class="st">شظية كبيرة: لا تخرجها — ثبّتها</div><div class="ab">⚠️ إصابة عمود فقري: لا تحرّك المصاب إلا عند خطر فوري</div>`}},
+  {k:['غابة','صحراء','جبل','تيه','ضاع','بر','طبيعة'],f(q,t){return`<span class="To">🌲 البقاء في الطبيعة</span><br><br><div class="st">3 دق بدون هواء → 3 ساعات بدون دفء → 3 أيام بدون ماء</div><div class="st">3 صفارات / أعمدة دخان = استغاثة دولية</div><div class="st">سر مع المجرى المائي للأسفل → يؤدي للحضارة</div><div class="gb">📖 تفاصيل كاملة في تبويب البقاء 🔥</div>`}},
+  {k:['نووي','إشعاع','ذري','نهاية عالم'],f(q,t){return`<span class="Tr">☢️ بروتوكول النووي</span><br><br><div class="st">عند الومضة: اطرح نفسك — ظهرك للومضة</div><div class="st">أعمق نقطة في أقرب مبنى خرساني</div><div class="st">كل 7 ساعات الإشعاع يتراجع 10 أضعاف</div><div class="st">ابقَ داخل 24-48 ساعة = 90%+ أقل تعرضاً</div><div class="ab">⚠️ الماء في حاويات مغلقة مسبقاً فقط هو الآمن</div>`}},
+];
+
+function aiFindAnswer(q,t){
+  const ql=q.toLowerCase().trim();
+  let best=null,score=0;
+  for(const item of DB){let s=0;for(const k of item.k)if(ql.includes(k))s+=k.length*2;if(s>score){score=s;best=item;}}
+  if(best&&score>0){let r=best.f(ql,t);if(t>=4)r=`<div class="ab">🚨 مستوى ${t===5?'كارثي':'حرج'} — كل ثانية تُحسب!</div><br>`+r;return r;}
+  return`<span class="To">🟠 لم أفهم السيناريو — أضف تفاصيل أكثر:</span><br><br><div class="st">المكان + عدد الأشخاص + الموارد + نوع الخطر</div><div class="gb">✅ اختر سيناريو من القائمة أعلاه</div>`;
+}
+
+function aiAddMsg(role,html,isH=true){
+  const box=document.getElementById('aimsg');
+  const d=document.createElement('div');d.className='msg '+(role==='ai'?'a':'u');
+  const av=document.createElement('div');av.className='av';av.textContent=role==='ai'?'🛡️':'👤';
+  const b=document.createElement('div');b.className='bub';
+  const n=document.createElement('div');n.className='mn';n.textContent=role==='ai'?'AEGIS':'أنت';
+  const c=document.createElement('div');isH?c.innerHTML=html:c.textContent=html;
+  b.appendChild(n);b.appendChild(c);d.appendChild(av);d.appendChild(b);
+  box.appendChild(d);box.scrollTop=box.scrollHeight;aiCnt++;
+}
+function aiShowTyp(){
+  const box=document.getElementById('aimsg');
+  const d=document.createElement('div');d.className='typing2';d.id='aityp';
+  d.innerHTML=`<div class="av" style="width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(0,229,255,.1);border:1px solid #00e5ff;font-size:.85rem;flex-shrink:0">🛡️</div><div class="td"><span></span><span></span><span></span></div>`;
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+function aiHideTyp(){const t=document.getElementById('aityp');if(t)t.remove();}
+function aiSend(){
+  const inp=document.getElementById('aiinp'),btn=document.getElementById('sndb');
+  const txt=inp.value.trim();if(!txt)return;
+  inp.value='';btn.disabled=true;
+  aiAddMsg('user',txt,false);aiShowTyp();
+  setTimeout(()=>{aiHideTyp();aiAddMsg('ai',aiFindAnswer(txt,aiThr));btn.disabled=false;inp.focus();},300+Math.random()*300);
+}
+
+// ══════════════════════════════════
+//  RADIO — البث المباشر
+// ══════════════════════════════════
+const STATIONS = [
+  {name:'BBC Arabic',   freq:93.8, url:'https://stream.live.vc.bbcmedia.co.uk/bbc_arabic_radio'},
+  {name:'MBC FM',       freq:99.0, url:'https://shoutcast.mbc.net/MBCFMAACAudio'},
+  {name:'Saudi Quran',  freq:93.0, url:'https://qurango.net/radio/saudia'},
+  {name:'Monte Carlo',  freq:98.7, url:'https://audio.rfi.fr/mcd-32'},
+  {name:'Radio Sawa',   freq:100.3,url:'https://18843.live.streamtheworld.com/BBCWS_ARABIC_SC'},
+  {name:'Rotana FM',    freq:95.9, url:'https://shoutcast.mbc.net/RotanaFMAudio'},
+  {name:'Nile FM',      freq:104.2,url:'https://26283.live.streamtheworld.com/NILE_FM.mp3'},
+  {name:'Sky News AR',  freq:107.5,url:'https://n13.radiojar.com/8s5u5tpdtwzuv'},
+];
+
+let radioAudio=null, radioVisInt=null, currentStation=null;
+let currentFreq=87.5, scanInt=null, radioInited=false;
+
+function initRadio(){
+  if(radioInited) return; radioInited=true;
+
+  // Signal bars
+  const sb=document.getElementById('sigbars');
+  for(let i=0;i<5;i++){const b=document.createElement('div');b.className='sig-bar';b.style.height=(6+i*4)+'px';sb.appendChild(b);}
+
+  // Vis bars
+  const vis=document.getElementById('rvis');
+  for(let i=0;i<22;i++){const b=document.createElement('div');b.className='bar';b.style.height='4px';vis.appendChild(b);}
+
+  // Station buttons
+  const cont=document.getElementById('rstations');
+  STATIONS.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='rstation';d.id='rs-'+i;
+    d.innerHTML=`<div class="rsn">${s.name}</div><div class="rsf">${s.freq.toFixed(1)} MHz</div>`;
+    d.onclick=()=>{ tuneFreqTo(s.freq); playStation(i); };
+    cont.appendChild(d);
+  });
+
+  updateFreqDisplay(currentFreq);
+}
+
+function switchRadioMode(mode){
+  document.getElementById('rmode-broadcast').style.display = mode==='broadcast'?'block':'none';
+  document.getElementById('rmode-walkie').style.display   = mode==='walkie'?'block':'none';
+  document.querySelectorAll('.rmode-tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('rtab-'+mode).classList.add('on');
+  if(mode==='broadcast') initRadio();
+}
+
+function updateFreqDisplay(f){
+  currentFreq=Math.round(f*10)/10;
+  document.getElementById('rfreq').textContent=currentFreq.toFixed(1);
+  document.getElementById('freqinp').value=currentFreq.toFixed(1);
+  // highlight matching station
+  document.querySelectorAll('.rstation').forEach((el,i)=>{
+    el.classList.toggle('playing', Math.abs(STATIONS[i].freq-currentFreq)<0.15 && radioAudio && !radioAudio.paused);
+  });
+  // update name
+  const match=STATIONS.find(s=>Math.abs(s.freq-currentFreq)<0.15);
+  if(match && radioAudio && !radioAudio.paused) document.getElementById('rname').textContent='▶ '+match.name;
+}
+
+function stepFreq(delta){
+  updateFreqDisplay(Math.min(108,Math.max(87.5,currentFreq+delta)));
+}
+
+function focusFreqInput(){ document.getElementById('freqinp').focus(); }
+
+function tuneToFreq(){
+  const v=parseFloat(document.getElementById('freqinp').value);
+  if(isNaN(v)||v<87.5||v>108){alert('التردد يجب أن يكون بين 87.5 و 108 MHz');return;}
+  updateFreqDisplay(v);
+  const match=STATIONS.findIndex(s=>Math.abs(s.freq-v)<0.15);
+  if(match>=0) playStation(match);
+  else {stopRadio();document.getElementById('rname').textContent='⚠️ لا توجد محطة على هذا التردد';}
+}
+
+function tuneFreqTo(f){
+  updateFreqDisplay(f);
+  document.getElementById('freqinp').value=f.toFixed(1);
+}
+
+function scanFreq(){
+  clearInterval(scanInt);
+  let f=87.5;
+  document.getElementById('rstatus').textContent='⟳ مسح...';
+  scanInt=setInterval(()=>{
+    f+=0.1; if(f>108){f=87.5;}
+    updateFreqDisplay(f);
+    const m=STATIONS.findIndex(s=>Math.abs(s.freq-f)<0.15);
+    if(m>=0){clearInterval(scanInt);playStation(m);document.getElementById('rstatus').textContent='⬤ ON AIR';}
+  },60);
+}
+
+function playStation(i){
+  stopRadio();
+  const s=STATIONS[i];
+  currentStation=i;
+  document.querySelectorAll('.rstation').forEach(r=>r.classList.remove('playing'));
+  document.getElementById('rs-'+i).classList.add('playing');
+  document.getElementById('rname').textContent='⏳ جاري الاتصال...';
+  document.getElementById('rstatus').textContent='⟳ TUNING';
+  setSignal(0);
+  radioAudio=new Audio(s.url);
+  radioAudio.crossOrigin='anonymous';
+  radioAudio.volume=parseFloat(document.getElementById('rvol').value);
+  radioAudio.play()
+    .then(()=>{
+      document.getElementById('rname').textContent='▶ '+s.name;
+      document.getElementById('rstatus').textContent='⬤ ON AIR';
+      setSignal(4+Math.floor(Math.random()*1));
+      startRadioVis();
+    })
+    .catch(()=>{
+      document.getElementById('rname').textContent='⚠️ تعذّر الاتصال — جرّب محطة أخرى';
+      document.getElementById('rstatus').textContent='⬤ ERROR';
+    });
+}
+
+function stopRadio(){
+  if(radioAudio){radioAudio.pause();radioAudio.src='';radioAudio=null;}
+  clearInterval(radioVisInt); clearInterval(scanInt);
+  document.querySelectorAll('.rstation').forEach(r=>r.classList.remove('playing'));
+  document.getElementById('rname').textContent='إيقاف';
+  document.getElementById('rstatus').textContent='⬤ STANDBY';
+  document.querySelectorAll('#rvis .bar').forEach(b=>b.style.height='4px');
+  setSignal(0); currentStation=null;
+}
+
+function startRadioVis(){
+  clearInterval(radioVisInt);
+  radioVisInt=setInterval(()=>{
+    document.querySelectorAll('#rvis .bar').forEach(b=>{
+      b.style.height=(radioAudio&&!radioAudio.paused?4+Math.random()*30:4)+'px';
+    });
+  },75);
+}
+
+function setSignal(level){
+  document.querySelectorAll('.sig-bar').forEach((b,i)=>b.classList.toggle('active',i<level));
+}
+
+function radioVol(delta){
+  const vol=document.getElementById('rvol');
+  vol.value=Math.min(1,Math.max(0,parseFloat(vol.value)+delta));
+  setVol(vol.value);
+}
+function setVol(v){
+  if(radioAudio) radioAudio.volume=parseFloat(v);
+  document.getElementById('rvpct').textContent=Math.round(v*100)+'%';
+}
+
+// ══════════════════════════════════
+//  RADIO — راديو التواصل الصوتي
+//  يعمل عبر: BroadcastChannel (محلي)
+//  + WebRTC للتواصل الحقيقي عبر الإنترنت
+// ══════════════════════════════════
+let wName='', wChannel=1, wBC=null, wActive=false;
+let wStream=null, wAudioCtx=null, wAnalyser=null;
+let wPeerConns={}, wPTTActive=false;
+let wMediaRecorder=null, wChunks=[];
+
+function changeChannel(d){
+  const inp=document.getElementById('wchan');
+  inp.value=Math.min(99,Math.max(1,parseInt(inp.value||1)+d));
+}
+
+function joinChannel(){
+  const name=document.getElementById('wname').value.trim();
+  const ch=parseInt(document.getElementById('wchan').value)||1;
+  if(!name){alert('أدخل اسمك في الراديو');return;}
+  wName=name; wChannel=ch; wActive=true;
+
+  document.getElementById('walkie-setup').style.display='none';
+  document.getElementById('channel-display').style.display='block';
+  document.getElementById('walkie-controls').style.display='block';
+  document.getElementById('chan-num').textContent=String(ch).padStart(2,'0');
+  document.getElementById('chan-myname').textContent=wName;
+
+  // BroadcastChannel للتواصل بين تبويبات نفس الجهاز
+  if(typeof BroadcastChannel!=='undefined'){
+    wBC=new BroadcastChannel('aegis_radio_ch_'+wChannel);
+    wBC.onmessage=e=>handleWalkieMsg(e.data);
+    broadcastWalkie({type:'join',name:wName});
+    addRadioLog('📡','النظام',`انضممت للقناة ${wChannel}`);
+    addRadioLog('ℹ️','النظام','شارك الرابط مع الآخرين — يفتحون نفس الصفحة ويختارون نفس القناة');
+  }
+
+  updateChannelUsers();
+}
+
+let channelUsers={};
+
+function broadcastWalkie(data){
+  if(wBC) wBC.postMessage({...data,from:wName,channel:wChannel,ts:Date.now()});
+}
+
+function handleWalkieMsg(data){
+  if(data.channel!==wChannel||data.from===wName) return;
+  if(data.type==='join'){
+    channelUsers[data.from]={name:data.from,talking:false};
+    updateChannelUsers();
+    addRadioLog('📡',data.from,'انضم للقناة');
+    broadcastWalkie({type:'presence',name:wName});
+  }
+  else if(data.type==='presence'){
+    channelUsers[data.from]={name:data.from,talking:false};
+    updateChannelUsers();
+  }
+  else if(data.type==='leave'){
+    delete channelUsers[data.from];
+    updateChannelUsers();
+    addRadioLog('📵',data.from,'غادر القناة');
+  }
+  else if(data.type==='text'){
+    addRadioLog('💬',data.from,data.text);
+  }
+  else if(data.type==='location'){
+    addRadioLog('📍',data.from,`موقعه: ${data.lat}, ${data.lng} — `+`<a href="https://maps.google.com/?q=${data.lat},${data.lng}" target="_blank" style="color:var(--c)">خريطة</a>`);
+  }
+  else if(data.type==='talking'){
+    if(channelUsers[data.from]) channelUsers[data.from].talking=data.active;
+    updateChannelUsers();
+    if(data.active) document.getElementById('ptt-status').textContent='📡 '+data.from+' يتكلم...';
+    else document.getElementById('ptt-status').textContent='جاهز للإرسال';
+  }
+  else if(data.type==='audio_chunk'){
+    // استقبال الصوت وتشغيله
+    playReceivedAudio(data.audio, data.from);
+  }
+}
+
+function updateChannelUsers(){
+  const box=document.getElementById('chan-users');
+  box.innerHTML='';
+  // add self
+  const self=document.createElement('div');
+  self.className='cuser'; self.textContent='👤 '+wName+' (أنا)';
+  box.appendChild(self);
+  // others
+  Object.values(channelUsers).forEach(u=>{
+    const d=document.createElement('div');
+    d.className='cuser'+(u.talking?' talking':'');
+    d.textContent=(u.talking?'🎙️ ':'👤 ')+u.name;
+    box.appendChild(d);
+  });
+}
+
+function addRadioLog(icon, who, txt){
+  const box=document.getElementById('radio-log');
+  // clear placeholder
+  if(box.querySelector('[style]')) box.innerHTML='';
+  const d=document.createElement('div');
+  d.className='rlog-item';
+  const now=new Date();
+  const t=now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
+  const isMe=who===wName||who==='أنت';
+  d.innerHTML=`<span class="rlog-who${isMe?' me':''}">${icon} ${who}</span><span class="rlog-txt">${txt}</span><span class="rlog-time">${t}</span>`;
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+}
+
+// ── زر الضغط للكلام (PTT) ──
+async function startPTT(e){
+  if(e) e.preventDefault();
+  if(wPTTActive) return;
+  wPTTActive=true;
+  const btn=document.getElementById('ptt-btn');
+  btn.classList.add('transmitting');
+  document.getElementById('ptt-status').textContent='🔴 إرسال...';
+  broadcastWalkie({type:'talking',active:true});
+
+  try{
+    wStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true},video:false});
+    wChunks=[];
+    wMediaRecorder=new MediaRecorder(wStream,{mimeType:MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'audio/ogg'});
+    wMediaRecorder.ondataavailable=e=>{if(e.data.size>0)wChunks.push(e.data);};
+    wMediaRecorder.onstop=()=>{
+      const blob=new Blob(wChunks,{type:wMediaRecorder.mimeType});
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        broadcastWalkie({type:'audio_chunk',audio:ev.target.result,name:wName});
+        addRadioLog('🎙️','أنت','[رسالة صوتية أُرسلت]');
+      };
+      reader.readAsDataURL(blob);
+    };
+    wMediaRecorder.start(100);
+    addRadioLog('🔴','أنت','بدأ الإرسال...');
+  }catch(err){
+    document.getElementById('ptt-status').textContent='⚠️ تعذّر الوصول للميكروفون';
+    wPTTActive=false;
+    btn.classList.remove('transmitting');
+    broadcastWalkie({type:'talking',active:false});
+  }
+}
+
+function stopPTT(e){
+  if(e) e.preventDefault();
+  if(!wPTTActive) return;
+  wPTTActive=false;
+  const btn=document.getElementById('ptt-btn');
+  btn.classList.remove('transmitting');
+  document.getElementById('ptt-status').textContent='✅ تم الإرسال';
+  broadcastWalkie({type:'talking',active:false});
+  if(wMediaRecorder&&wMediaRecorder.state!=='inactive') wMediaRecorder.stop();
+  if(wStream){wStream.getTracks().forEach(t=>t.stop());wStream=null;}
+  setTimeout(()=>{if(document.getElementById('ptt-status'))document.getElementById('ptt-status').textContent='جاهز للإرسال';},2000);
+}
+
+function playReceivedAudio(dataUrl, from){
+  try{
+    const audio=new Audio(dataUrl);
+    audio.play().then(()=>{
+      addRadioLog('📻',from,'[رسالة صوتية — يتم التشغيل]');
+    }).catch(()=>{
+      addRadioLog('📻',from,'[رسالة صوتية — اضغط لتشغيل]');
+    });
+  }catch(e){}
+}
+
+function sendWalkieText(){
+  const inp=document.getElementById('wtextinp');
+  const txt=inp.value.trim(); if(!txt)return;
+  inp.value='';
+  broadcastWalkie({type:'text',text:txt});
+  addRadioLog('💬','أنت',txt);
+}
+
+function shareWalkieLocation(){
+  navigator.geolocation.getCurrentPosition(p=>{
+    const lat=p.coords.latitude.toFixed(5), lng=p.coords.longitude.toFixed(5);
+    broadcastWalkie({type:'location',lat,lng});
+    addRadioLog('📍','أنت',`موقعي: ${lat}, ${lng}`);
+  },()=>addRadioLog('⚠️','النظام','تعذّر الحصول على الموقع'));
+}
+
+function leaveChannel(){
+  broadcastWalkie({type:'leave'});
+  if(wBC){wBC.close();wBC=null;}
+  if(wStream){wStream.getTracks().forEach(t=>t.stop());wStream=null;}
+  wActive=false; channelUsers={};
+  document.getElementById('walkie-setup').style.display='block';
+  document.getElementById('channel-display').style.display='none';
+  document.getElementById('walkie-controls').style.display='none';
+  document.getElementById('radio-log').innerHTML='<div style="color:var(--dm);font-size:.72rem;text-align:center;padding:8px">سجل الرسائل الصوتية والنصية</div>';
+}
+
+// ══════════════════════════════════
+//  NOTES
+// ══════════════════════════════════
+let notes=[], currentNoteId=null;
+
+function loadNotes(){
+  try{notes=JSON.parse(localStorage.getItem('aegis_notes')||'[]');}catch(e){notes=[];}
+  renderNotesList();
+  if(notes.length>0) openNote(notes[0].id);
+  else newNote();
+}
+
+function saveNotes(){
+  try{localStorage.setItem('aegis_notes',JSON.stringify(notes));}catch(e){}
+}
+
+function renderNotesList(){
+  const list=document.getElementById('notes-list');
+  if(notes.length===0){list.innerHTML='<div style="text-align:center;color:var(--dm);font-size:.75rem;padding:8px">لا توجد ملاحظات — اضغط "جديد"</div>';return;}
+  list.innerHTML='';
+  notes.forEach(n=>{
+    const d=document.createElement('div');
+    d.className='note-item'+(n.id===currentNoteId?' on':'');
+    d.onclick=()=>openNote(n.id);
+    const dt=new Date(n.updated||n.created);
+    const timeStr=dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0');
+    d.innerHTML=`<div><div class="note-item-title">${n.title||'بدون عنوان'}</div><div class="note-item-preview">${(n.body||'').substring(0,40)}</div></div><div class="note-item-time">${timeStr}</div>`;
+    list.appendChild(d);
+  });
+}
+
+function openNote(id){
+  currentNoteId=id;
+  const note=notes.find(n=>n.id===id);
+  if(!note)return;
+  document.getElementById('ntitle').value=note.title||'';
+  document.getElementById('nbody').value=note.body||'';
+  renderNotesList();
+}
+
+function newNote(){
+  const id='note_'+Date.now();
+  notes.unshift({id,title:'',body:'',created:Date.now(),updated:Date.now()});
+  saveNotes();
+  openNote(id);
+  renderNotesList();
+  document.getElementById('ntitle').focus();
+}
+
+function saveNote(){
+  const note=notes.find(n=>n.id===currentNoteId);
+  if(!note){newNote();return;}
+  note.title=document.getElementById('ntitle').value||'ملاحظة '+new Date().toLocaleTimeString('ar');
+  note.body=document.getElementById('nbody').value;
+  note.updated=Date.now();
+  saveNotes();
+  renderNotesList();
+  const st=document.getElementById('nsave-status');
+  st.textContent='✅ تم الحفظ';
+  setTimeout(()=>st.textContent='',2000);
+}
+
+function deleteNote(){
+  if(!currentNoteId)return;
+  if(!confirm('حذف هذه الملاحظة؟'))return;
+  notes=notes.filter(n=>n.id!==currentNoteId);
+  currentNoteId=null;
+  saveNotes();
+  if(notes.length>0)openNote(notes[0].id);
+  else{newNote();}
+  renderNotesList();
+}
+
+function exportNote(){
+  const note=notes.find(n=>n.id===currentNoteId);
+  if(!note)return;
+  const text=`${note.title}\n${'='.repeat(40)}\n${note.body}\n\nتم الحفظ: ${new Date(note.updated).toLocaleString('ar')}`;
+  const blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(note.title||'ملاحظة')+'.txt';
+  a.click();
+}
+
+// Auto-save every 3 seconds
+setInterval(()=>{ if(currentNoteId) saveNote(); },3000);
+
+// ══════════════════════════════════
+//  CHAT (Firebase Realtime)
+// ══════════════════════════════════
+const FB_CONFIG = {
+  apiKey:"AIzaSyDemo_AEGIS_v9_replace_with_real",
+  authDomain:"aegis-chat-demo.firebaseapp.com",
+  projectId:"aegis-chat-demo"
+};
+
+let db=null, chatRoom=null, myName='', unsubChat=null;
+let chatMode='local'; // 'local' or 'firebase'
+
+// Try to init Firebase
+try{
+  if(!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+  db = firebase.firestore();
+  document.getElementById('hst').textContent='متصل';
+  chatMode='firebase';
+}catch(e){
+  chatMode='local';
+  console.log('Chat in local mode');
+}
+
+function genRoom(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code='';
+  for(let i=0;i<4;i++) code+=chars[Math.floor(Math.random()*chars.length)];
+  document.getElementById('room-inp').value=code;
+}
+
+function joinRoom(){
+  const name=document.getElementById('uname-inp').value.trim();
+  if(!name){alert('أدخل اسمك أولاً');return;}
+  const room=document.getElementById('room-inp').value.trim()||genRoomAuto();
+  myName=name; chatRoom=room.toUpperCase();
+  startChat();
+}
+
+function joinWithCode(){
+  const name=document.getElementById('uname-inp').value.trim()||'مجهول_'+Math.floor(Math.random()*999);
+  const code=document.getElementById('room-inp').value.trim();
+  if(!code){alert('أدخل كود الغرفة');return;}
+  myName=name; chatRoom=code.toUpperCase();
+  startChat();
+}
+
+function genRoomAuto(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c='';for(let i=0;i<4;i++)c+=chars[Math.floor(Math.random()*c.length+8)];
+  return c;
+}
+
+function startChat(){
+  document.getElementById('chat-setup-view').style.display='none';
+  document.getElementById('chat-room-view').style.display='block';
+  document.getElementById('room-display').textContent=chatRoom;
+  document.getElementById('myname-display').textContent=myName;
+  document.getElementById('chat-input-wrap').style.display='flex';
+
+  const box=document.getElementById('chatmsgs');
+  box.innerHTML=`<div class="system-msg">🚪 انضممت للغرفة <strong>${chatRoom}</strong> باسم <strong>${myName}</strong></div>`;
+
+  if(chatMode==='firebase' && db){
+    listenFirebase();
+  } else {
+    // Local mode (same browser tab demo)
+    box.innerHTML+=`<div class="system-msg">📡 وضع محلي — شارك الرابط مع الآخرين</div>`;
+    // Use BroadcastChannel for same-device multi-tab
+    startLocalChat();
+  }
+}
+
+// BroadcastChannel for local multi-tab
+let bc=null;
+function startLocalChat(){
+  if(typeof BroadcastChannel !== 'undefined'){
+    bc = new BroadcastChannel('aegis_chat_'+chatRoom);
+    bc.onmessage = e => {
+      if(e.data.type==='msg') appendChatMsg(e.data, false);
+      if(e.data.type==='join') addSystemMsg(`👋 ${e.data.name} انضم للغرفة`);
+    };
+    bc.postMessage({type:'join',name:myName,room:chatRoom});
+    addSystemMsg('✅ البث المحلي نشط — افتح نفس الصفحة في تبويب آخر للتجربة');
+    document.getElementById('online-count').textContent='نشط';
+  }
+}
+
+function listenFirebase(){
+  if(unsubChat) unsubChat();
+  unsubChat = db.collection('aegis_rooms').doc(chatRoom)
+    .collection('messages').orderBy('ts').limitToLast(50)
+    .onSnapshot(snap=>{
+      snap.docChanges().forEach(change=>{
+        if(change.type==='added'){
+          const d=change.doc.data();
+          appendChatMsg(d, d.name===myName);
+        }
+      });
+    });
+  db.collection('aegis_rooms').doc(chatRoom)
+    .collection('presence').doc(myName).set({name:myName,online:true,ts:firebase.firestore.FieldValue.serverTimestamp()});
+}
+
+function chatSend(){
+  const inp=document.getElementById('chatinp');
+  const text=inp.value.trim();
+  if(!text)return;
+  inp.value='';
+  const msg={name:myName,text,room:chatRoom,ts:Date.now()};
+  if(chatMode==='firebase'&&db){
+    db.collection('aegis_rooms').doc(chatRoom).collection('messages').add({...msg,ts:firebase.firestore.FieldValue.serverTimestamp()});
+    appendChatMsg(msg,true);
+  } else {
+    appendChatMsg(msg,true);
+    if(bc) bc.postMessage({type:'msg',...msg});
+  }
+}
+
+function appendChatMsg(data, isMe){
+  const box=document.getElementById('chatmsgs');
+  const d=document.createElement('div');
+  d.className='cmsg'+(isMe?' me':'');
+  const time=data.ts?(typeof data.ts==='number'?new Date(data.ts):new Date()):new Date();
+  const timeStr=time.getHours()+':'+String(time.getMinutes()).padStart(2,'0');
+  d.innerHTML=`<div class="cmeta">${isMe?'أنت':data.name} · ${timeStr}</div><div class="cbub">${escHtml(data.text)}</div>`;
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+}
+
+function addSystemMsg(txt){
+  const box=document.getElementById('chatmsgs');
+  const d=document.createElement('div');d.className='system-msg';d.textContent=txt;
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+
+function escHtml(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function shareMyLocation(){
+  navigator.geolocation.getCurrentPosition(p=>{
+    const txt=`📍 موقعي: ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)} — https://maps.google.com/?q=${p.coords.latitude},${p.coords.longitude}`;
+    document.getElementById('chatinp').value=txt;
+  },()=>addSystemMsg('⚠️ تعذّر الحصول على الموقع'));
+}
+
+function leaveRoom(){
+  if(bc){bc.close();bc=null;}
+  if(unsubChat){unsubChat();unsubChat=null;}
+  chatRoom=null;myName='';
+  document.getElementById('chat-setup-view').style.display='block';
+  document.getElementById('chat-room-view').style.display='none';
+  document.getElementById('chat-input-wrap').style.display='none';
+  document.getElementById('chatmsgs').innerHTML='<div class="system-msg">👋 خرجت من الغرفة</div>';
+}
+
+// ══════════════════════════════════
+//  CLOCK
+// ══════════════════════════════════
+(function initClock(){
+  const face=document.getElementById('clkface');
+  for(let i=0;i<12;i++){
+    const tk=document.createElement('div');
+    const a=i*30,r=72,rad=a*Math.PI/180,big=i%3===0;
+    tk.style.cssText=`position:absolute;width:${big?2.5:1.5}px;height:${big?10:5}px;background:${big?'rgba(0,229,255,.5)':'rgba(74,127,160,.3)'};border-radius:2px;top:calc(50% - ${r*Math.cos(rad)}px - ${big?10:5}px);left:calc(50% + ${r*Math.sin(rad)}px - ${big?1.25:.75}px);transform:rotate(${a}deg);transform-origin:bottom center`;
+    face.appendChild(tk);
+  }
+  function tick(){
+    const now=new Date(),h=now.getHours(),m=now.getMinutes(),s=now.getSeconds(),ms=now.getMilliseconds();
+    document.getElementById('hh').style.cssText=`height:44px;top:calc(50% - 44px);left:calc(50% - 2px);transform:rotate(${(h%12)*30+m*.5}deg);background:var(--c);box-shadow:0 0 5px var(--c)`;
+    document.getElementById('hm').style.cssText=`height:58px;top:calc(50% - 58px);left:calc(50% - 1.25px);transform:rotate(${m*6+s*.1}deg);background:var(--g);box-shadow:0 0 4px var(--g)`;
+    document.getElementById('hs').style.cssText=`height:68px;top:calc(50% - 68px);left:calc(50% - .75px);transform:rotate(${s*6+ms*.006}deg);background:var(--r);box-shadow:0 0 4px var(--r)`;
+    const pad=n=>String(n).padStart(2,'0');
+    document.getElementById('dtime').textContent=`${pad(h)}:${pad(m)}:${pad(s)}`;
+    const days=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+    document.getElementById('ddate').textContent=`${days[now.getDay()]} ${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+
+// ══════════════════════════════════
+//  COMPASS
+// ══════════════════════════════════
+let compassActive=false;
+const dirs8=['شمال','ش.شرق','شرق','ج.شرق','جنوب','ج.غرب','غرب','ش.غرب'];
+
+function startCompass(){
+  if(compassActive)return;
+  const go=()=>{
+    compassActive=true;
+    let last=null;
+    const h=e=>{
+      let a=e.webkitCompassHeading!==undefined&&e.webkitCompassHeading!==null?e.webkitCompassHeading:(360-(e.alpha||0))%360;
+      if(last===null)last=a;
+      const diff=a-last,adj=diff>180?diff-360:diff<-180?diff+360:diff;
+      last=(last+adj*.35+360)%360;
+      const deg=Math.round(last);
+      document.getElementById('cneedle').style.transform=`rotate(${deg}deg)`;
+      document.getElementById('cdeg').textContent=`${deg}°`;
+      document.getElementById('cdir').textContent=dirs8[Math.round(deg/45)%8];
+    };
+    window.addEventListener('deviceorientationabsolute',h,true);
+    window.addEventListener('deviceorientation',e=>{if(!e.absolute)h(e);},true);
+    setTimeout(()=>{if(document.getElementById('cdeg').textContent==='---°')document.getElementById('cdir').textContent='⚠️ غير متاح — استخدم الملاحة الطبيعية';},2500);
+  };
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(r=>{if(r==='granted')go();else document.getElementById('cdir').textContent='❌ رُفض الإذن';}).catch(()=>{go();});
+  } else {go();}
+}
+
+// Draw compass ticks
+(()=>{
+  const ring=document.getElementById('compass');
+  for(let i=0;i<36;i++){
+    const t=document.createElement('div');
+    const a=i*10,r=82,rad=a*Math.PI/180,big=i%9===0;
+    t.style.cssText=`position:absolute;width:${big?2.5:1.5}px;height:${big?10:5}px;background:${big?'rgba(0,229,255,.6)':'rgba(74,127,160,.3)'};border-radius:2px;top:calc(50% - ${r*Math.cos(rad)}px - ${big?10:5}px);left:calc(50% + ${r*Math.sin(rad)}px - ${big?1.25:.75}px);transform:rotate(${a}deg);transform-origin:bottom center`;
+    ring.appendChild(t);
+  }
+})();
+
+// ══════════════════════════════════
+//  FLASHLIGHT
+// ══════════════════════════════════
+let flashOn=false,fMode='s',fInt=null,torchTrack=null;
+async function toggleFlash(){
+  flashOn=!flashOn;
+  const btn=document.getElementById('fbtn'),lbl=document.getElementById('flbl'),ov=document.getElementById('foverlay');
+  clearInterval(fInt);
+  if(flashOn){
+    btn.classList.add('on');lbl.classList.add('on');lbl.textContent='تشغيل ✓';
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:1,height:1}});
+      torchTrack=stream.getVideoTracks()[0];
+      const caps=torchTrack.getCapabilities();
+      if(caps.torch){await torchTrack.applyConstraints({advanced:[{torch:true}]});lbl.textContent='🔦 كشاف حقيقي ✓';}
+    }catch(e){torchTrack=null;}
+    applyFM();
+  }else{
+    btn.classList.remove('on');lbl.classList.remove('on');lbl.textContent='إيقاف';
+    ov.style.background='transparent';
+    if(torchTrack){try{await torchTrack.applyConstraints({advanced:[{torch:false}]});torchTrack.stop();}catch(e){}torchTrack=null;}
+  }
+}
+function applyFM(){
+  const ov=document.getElementById('foverlay');clearInterval(fInt);if(!flashOn)return;
+  if(fMode==='s'){ov.style.background='rgba(255,255,240,.22)';}
+  else if(fMode==='b'){let v=true;fInt=setInterval(()=>{ov.style.background=v?'rgba(255,255,240,.25)':'transparent';v=!v;},400);}
+  else if(fMode==='sos'){const p=[1,0,1,0,1,0,0,0,1,1,1,0,1,1,1,0,1,1,1,0,0,0,1,0,1,0,1,0,0,0,0,0];let i=0;fInt=setInterval(()=>{ov.style.background=p[i%p.length]?'rgba(255,255,240,.28)':'transparent';i++;},150);}
+}
+function setFM(m){fMode=m;document.querySelectorAll('.fm').forEach(b=>b.classList.remove('on'));document.getElementById('fm-'+m).classList.add('on');if(flashOn)applyFM();}
+
+// ══════════════════════════════════
+//  TIMER
+// ══════════════════════════════════
+let tMs=0,tRun=false,tInt=null;
+function tCtrl(a){
+  if(a==='start'&&!tRun){tRun=true;const base=Date.now()-tMs;tInt=setInterval(()=>{tMs=Date.now()-base;const h=Math.floor(tMs/3600000),m=Math.floor((tMs%3600000)/60000),s=Math.floor((tMs%60000)/1000);document.getElementById('tdsp').textContent=`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;},100);}
+  else if(a==='pause'){tRun=false;clearInterval(tInt);}
+  else{tRun=false;clearInterval(tInt);tMs=0;document.getElementById('tdsp').textContent='00:00:00';}
+}
+
+// ══════════════════════════════════
+//  SURVIVAL INFO
+// ══════════════════════════════════
+const SURV={
+fire:`<h3>🔥 إشعال النار من الصفر</h3><strong>الطريقة 1: الحك بالخشب</strong><ul class="il"><li><span class="sn">01</span>عصا جافة صلبة + خشبة قاعدة ناعمة جافة</li><li><span class="sn">02</span>ثقب في القاعدة + ورقة جافة تحته</li><li><span class="sn">03</span>دوّر العصا بسرعة مع ضغط لأسفل 2-4 دقائق</li><li><span class="sn">04</span>جمرة حمراء → انقلها لعش من أعشاب جافة → انفخ بلطف</li></ul><strong style="color:var(--o);display:block;margin-top:10px">الطريقة 2: حجر الصوان</strong><ul class="il"><li><span class="sn">01</span>اضرب الصوان بمعدن ثقيل — شرارات نحو مادة جافة</li></ul><div class="gb">✅ أفضل إشعال: لحاء شجر البتولا، فطر جاف مسحوق</div><div class="wb">⚠️ احمِ النار بحجارة من 3 جهات ضد الريح</div>`,
+food:`<h3>🍽️ الطبخ الطارئ بدون غاز</h3><ul class="il"><li><span class="sn">01</span>الجراد: حمّص في النار 3 دقائق — بروتين 65%</li><li><span class="sn">02</span>ديدان: اغلِها 5 دقائق — تزيل الطعم</li><li><span class="sn">03</span>نباتات: هندباء، قراص مسلوق</li><li><span class="sn">A</span>على حجارة ساخنة: مباشرة بعد إزالتها من النار</li><li><span class="sn">B</span>التغليف بالطين: لف الطعام بطين رطب ≥2سم → 45 دقيقة في الجمر</li><li><span class="sn">C</span>التحميص: 30سم فوق الجمر لا اللهب</li></ul><div class="ab">⚠️ مُر أو يخدّر اللسان = لا تأكله</div>`,
+water:`<h3>💧 تنقية الماء</h3><ul class="il"><li><span class="sn">01</span>الغلي: 5 دقائق (10 دقائق في ارتفاع عالٍ)</li><li><span class="sn">02</span>مرشح طارئ: قماش→فحم→رمل→حصى→قماش</li><li><span class="sn">03</span>كلور: نقطتان مبيض لكل لتر، انتظر 30 دقيقة</li><li><span class="sn">04</span>التقطير الشمسي: نايلون فوق وعاء ماء ملوث + حجر في المنتصف</li></ul><div class="ab">⚠️ لا ماء البحر، لا الماء الأخضر الساكن</div>`,
+shelter:`<h3>🏕️ الملجأ الطارئ</h3><ul class="il"><li><span class="sn">01</span>حبل أفقي بين شجرتين 1.2م + غطاء فوقه = خيمة في 20 دقيقة</li><li><span class="sn">02</span>زاوية 45° = أفضل صرف للمطر</li><li><span class="sn">03</span>ملجأ الثلج: كومة ثلج 2م → انتظر ساعة → احفر نفقاً من الجانب</li></ul><div class="gb">✅ العزل عن الأرض أهم من السقف — الأرض تسلب حرارتك 3× أسرع</div>`,
+signal:`<h3>📡 إشارات الإنقاذ</h3><ul class="il"><li><span class="sn">3×</span>3 طلقات / 3 صفارات / 3 أعمدة دخان = استغاثة دولية</li><li><span class="sn">SOS</span>••• — — — ••• بالمورس أو المصباح</li><li><span class="sn">🪞</span>مرآة نحو الطائرة = يُرى من 15كم</li><li><span class="sn">X</span>رمز X على الأرض = أحتاج طبيب</li><li><span class="sn">V</span>رمز V على الأرض = أريد مساعدة</li></ul>`,
+nav:`<h3>🌟 الملاحة بدون GPS</h3><ul class="il"><li><span class="sn">☀️</span>الشمس: شرق صباحاً، جنوب ظهراً، غرب مساءً</li><li><span class="sn">🌟</span>النجم القطبي: أعلى مقبض المغرفة الكبيرة ×5 = الشمال</li><li><span class="sn">🌿</span>الطحلب على الجانب الشمالي من الأشجار</li><li><span class="sn">💧</span>سر مع المجرى المائي للأسفل → حضارة</li><li><span class="sn">🧭</span>إبرة ممغنطة تطفو على ماء → تشير للشمال</li></ul>`
+};
+function showI(k,btn){
+  document.querySelectorAll('.itab').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  document.getElementById('ict').innerHTML=SURV[k]||'';
+}
+showI('fire',null);
+
+// Init map on start
+setTimeout(()=>{ if(!mapInit) initMap(); },500);
+</script>
+</body>
+</html>
